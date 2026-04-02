@@ -1,0 +1,14 @@
+RESULTADOS - T1 GD Fotovoltaica MPPT
+======================================
+Sistema: Painel PV 200Wp + Buck-Boost + Bateria 48V/100Ah
+Dados: INMET A702 - Campo Grande/MS - 2025
+Período: 7 dias (a partir do dia 60)
+
+Métrica                | P&O      | Beta
+-----------------------|----------|----------
+Fator Rastreamento [%] |  95.6    |  71.1
+Energia total [Wh]     |  6655.0  |  4951.9
+Energia total [kWh]    |   6.66   |   4.95
+SOC final bateria [%]  | 100.0    | 100.0
+
+Ganho Beta sobre P&O: -1703.1 Wh (-25.6%)

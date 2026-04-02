@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# LaTeX auxiliares
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# PDFs (slides e plano de ensino — pesados, não são código)
+*.pdf
+
+# Dataset bruto (arquivo grande)
+T1/dataset/
+
+# Figuras geradas automaticamente (podem ser re-geradas rodando main.py)
+# Comentar a linha abaixo se quiser incluir as figuras no repositório
+# T1/figuras/

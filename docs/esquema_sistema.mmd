@@ -1,0 +1,59 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#1A6B9A"
+    primaryTextColor: "#ffffff"
+    primaryBorderColor: "#ffffff"
+    lineColor: "#2C3E50"
+    secondaryColor: "#1E8449"
+    tertiaryColor: "#F4F6F8"
+    fontSize: "15px"
+---
+
+flowchart LR
+
+    subgraph SRC ["☀️ Fonte Climática"]
+        INMET["**INMET A702**\nCampo Grande / MS\nG · T_amb"]
+    end
+
+    subgraph GEN ["⚡ Geração"]
+        PV["**Painel FV**\n200 Wp\nVoc = 32,9 V  |  Isc = 8,21 A"]
+    end
+
+    subgraph CTL ["🔄 Conversão & Controle"]
+        CONV["**Conversor Buck-Boost**\nDC-DC"]
+        MPPT["**Controlador MPPT**\nP&O  |  Beta β"]
+        CONV -- "Vpv · Ipv (medição)" --> MPPT
+        MPPT -- "Iref" --> CONV
+    end
+
+    subgraph SINK ["🔋 Armazenamento & Carga"]
+        BAT["**Banco de Baterias**\n48 V / 100 Ah  |  η = 95%\nSOC₀ = 50%"]
+        LOAD["**Carga DC**"]
+    end
+
+    BUS(["**Barramento CC - 48 V**"])
+
+    INMET  -- "G · Tamb"       --> PV
+    PV     -- "ipv · Vpv"      --> CONV
+    CONV   -- "Vdc"            --> BUS
+    BUS    -- "Pbat"           --> BAT
+    BUS    -- "Pload"          --> LOAD
+    BAT    -. "SOC (feedback)" .-> MPPT
+
+    classDef src  fill:#6C3483,stroke:#fff,color:#fff
+    classDef gen  fill:#1A6B9A,stroke:#fff,color:#fff
+    classDef conv fill:#C0392B,stroke:#fff,color:#fff
+    classDef ctrl fill:#1E8449,stroke:#fff,color:#fff
+    classDef bat  fill:#CA6F1E,stroke:#fff,color:#fff
+    classDef load fill:#5D6D7E,stroke:#fff,color:#fff
+    classDef bus  fill:#1C2833,stroke:#fff,color:#fff
+
+    class INMET src
+    class PV gen
+    class CONV conv
+    class MPPT ctrl
+    class BAT bat
+    class LOAD load
+    class BUS bus

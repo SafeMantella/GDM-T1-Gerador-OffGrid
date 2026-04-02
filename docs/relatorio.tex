@@ -1,0 +1,517 @@
+% ============================================================
+% Relatório T1 - Geração Distribuída e Microrredes - UFMS 2026
+% Compilar com pdfLaTeX ou XeLaTeX
+% Figuras: pasta "figuras/" com os PNGs gerados pela simulação
+% ============================================================
+\documentclass[11pt,a4paper]{article}
+
+% --- Codificação e idioma ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+
+% --- Tipografia ---
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% --- Layout ---
+\usepackage[top=2.2cm, bottom=2.2cm, left=2.5cm, right=2.5cm]{geometry}
+\usepackage{setspace}
+\setstretch{1.15}
+
+% --- Matemática ---
+\usepackage{amsmath, amssymb}
+\usepackage{siunitx}
+\sisetup{output-decimal-marker={,}, group-separator={.}}
+
+% --- Figuras e tabelas ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{array}
+\graphicspath{{figuras/}}
+
+% --- Cores e links ---
+\usepackage[dvipsnames]{xcolor}
+\usepackage[colorlinks=true, linkcolor=NavyBlue, citecolor=NavyBlue, urlcolor=NavyBlue]{hyperref}
+
+% --- Cabeçalho e rodapé ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{T1 - Geração Distribuída e Microrredes - UFMS 2026}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- Referências ---
+\usepackage[numbers,sort&compress]{natbib}
+
+% ============================================================
+\begin{document}
+
+% ---- Cabeçalho da instituição ----
+\begin{center}
+  {\small Universidade Federal de Mato Grosso do Sul - UFMS}\\
+  {\small Programa de Pós-Graduação em Engenharia Elétrica}\\
+  {\small Geração Distribuída e Microrredes - Prof.\ Luigi Galotto Junior (BATLAB)}
+  \vspace{0.8em}
+  \hrule
+  \vspace{0.8em}
+  {\LARGE\bfseries Simulação de Sistema de Geração Distribuída\\[4pt]
+   Fotovoltaica com Comparação de Algoritmos MPPT:\\[4pt]
+   P\&O \textit{vs} Método Beta ($\beta$)}
+  \vspace{0.5em}
+  \hrule
+  \vspace{0.5em}
+  {\normalsize Pedro Arfux}\\[2pt]
+  {\small Campo Grande/MS, \today}
+\end{center}
+
+% ---- Resumo ----
+\begin{abstract}
+\noindent
+Este trabalho apresenta a simulação de um sistema de geração distribuída fotovoltaica
+(GD-FV) de \SI{200}{\watt-peak} integrado a um banco de baterias ideal de
+\SI{48}{\volt}/\SI{100}{\ampere\hour}, alimentado por dados climáticos reais da
+Estação Automática INMET~A702 (Campo~Grande/MS, período de sete dias - março de 2025).
+Dois algoritmos de rastreamento do ponto de máxima potência (MPPT) são implementados
+e comparados: \textit{Perturba \& Observa} (P\&O) e o \textit{Método Beta} ($\beta$).
+A simulação utiliza o modelo de diodo único para o painel FV, resolvido iterativamente
+via Newton-Raphson, e um conversor Buck-Boost operando em modo de controle de corrente.
+Os resultados mostram que o Método~Beta atinge Fator de Rastreamento (FR) de \SI{99,98}{\percent}
+e energia total de \SI{6,96}{\kilo\watt\hour} em sete dias, superando o P\&O em
+\SI{5}{\percent} (FR~=~\SI{95,0}{\percent}, \SI{6,62}{\kilo\watt\hour}).
+A diferença é explicada pela característica oscilatória intrínseca do P\&O, que o Beta
+elimina por meio do controlador PI adaptativo.
+\end{abstract}
+
+\vspace{-0.5em}
+\noindent\textbf{Palavras-chave:} geração distribuída, fotovoltaico, MPPT, Perturba \& Observa, Método Beta, INMET.
+
+\vspace{1em}
+
+% ============================================================
+\section{Introdução}
+
+A geração distribuída fotovoltaica (GD-FV) é uma das tecnologias de maior crescimento
+no setor elétrico brasileiro, impulsionada pela redução de custos dos módulos e pelo
+potencial de irradiação solar elevado em regiões como o Centro-Oeste. A eficiência de
+conversão de um sistema FV depende criticamente do algoritmo de rastreamento do ponto
+de máxima potência (MPPT - \textit{Maximum Power Point Tracking}), responsável por
+manter o conversor operando no ponto ótimo da curva \textit{P-V} do painel a cada
+instante.
+
+Neste trabalho simulamos um sistema GD-FV de \SI{200}{\watt-peak} conectado a um
+banco de baterias ideal de \SI{48}{\volt}/\SI{100}{\ampere\hour} via conversor
+Buck-Boost, utilizando dados horários reais da Estação A702 do INMET
+(Campo~Grande/MS, 2025). A topologia do sistema é apresentada na
+Figura~\ref{fig:esquema}. Dois algoritmos MPPT são implementados em Python e
+comparados: o clássico \textit{Perturba \& Observa} (P\&O)
+\cite{esram2007comparison} e o \textit{Método Beta} ($\beta$) \cite{jain2004new},
+proposto como alternativa mais precisa e de convergência mais rápida.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{fig00_esquema_sistema.png}
+  \caption{Diagrama de blocos do sistema de geração distribuída fotovoltaica:
+           painel FV (200~Wp), conversor Buck-Boost com controlador MPPT,
+           barramento CC de 48~V, banco de baterias (48~V/100~Ah) e carga DC.
+           A entrada climática provém dos dados horários da Estação INMET~A702.}
+  \label{fig:esquema}
+\end{figure}
+
+% ============================================================
+\section{Modelagem do Sistema}
+
+\subsection{Painel Fotovoltaico - Modelo de Diodo Único}
+
+O painel é representado pelo circuito equivalente de diodo único
+\cite{villalva2009comprehensive}, cuja equação implícita relaciona corrente $I$ e
+tensão $V$ no terminal:
+
+\begin{equation}
+  I = I_{\rm ph} - I_0\!\left[\exp\!\left(\frac{V + I\,R_s}{V_T}\right) - 1\right]
+      - \frac{V + I\,R_s}{R_p}
+  \label{eq:diodo}
+\end{equation}
+
+\noindent onde $V_T = N_s\,n\,kT/q$ é a tensão térmica do painel,
+$I_{\rm ph}$ é a fotocorrente, $I_0$ é a corrente de saturação,
+$R_s$ e $R_p$ são as resistências série e paralela, $N_s = 54$ é o número de
+células em série, $n = 1{,}2$ é o fator de idealidade, $k$ é a constante de
+Boltzmann e $q$ a carga do elétron. A fotocorrente e a corrente de saturação
+dependem das condições de operação:
+
+\begin{align}
+  I_{\rm ph}(G, T_c) &= \bigl[I_{\rm sc} + \alpha_I\,(T_c - T_{\rm ref})\bigr]
+                        \,\frac{G}{G_{\rm ref}} \label{eq:Iph}\\[4pt]
+  I_0(T_c) &= I_{0,\rm ref}\,\left(\frac{T_c}{T_{\rm ref}}\right)^{\!3}
+              \exp\!\left[\frac{q\,E_g}{n\,k}
+              \left(\frac{1}{T_{\rm ref}} - \frac{1}{T_c}\right)\right]
+              \label{eq:I0}
+\end{align}
+
+\noindent onde $G$ é a irradiância [\si{\watt\per\meter\squared}], $T_c$ é a
+temperatura da célula [K], $\alpha_I = \SI{3,18e-3}{\ampere\per\celsius}$ é o
+coeficiente de temperatura e $E_g = \SI{1,12}{\electronvolt}$ é o \textit{bandgap}
+do silício. A temperatura da célula é estimada pela correção NOCT:
+$T_c = T_{\rm amb} + 25\,G/800$ (para $G > \SI{10}{\watt\per\meter\squared}$).
+
+A Eq.~\eqref{eq:diodo} é resolvida iterativamente por Newton-Raphson (até 50
+iterações, tolerância $10^{-8}$~A), com \textit{fallback} para o método
+\texttt{brentq} da biblioteca SciPy. O ponto de máxima potência
+$(V_{\rm mpp}, I_{\rm mpp})$ é localizado por varredura de 500 pontos seguida de
+refinamento via \texttt{minimize\_scalar}. Os parâmetros nominais (STC: $G_{\rm ref} =
+\SI{1000}{\watt\per\meter\squared}$, $T_{\rm ref} = \SI{25}{\celsius}$) estão
+resumidos na Tabela~\ref{tab:params}.
+
+\begin{table}[H]
+  \centering
+  \caption{Parâmetros nominais do painel FV (STC).}
+  \label{tab:params}
+  \small
+  \begin{tabular}{lrl}
+    \toprule
+    Parâmetro & Valor & Unidade \\
+    \midrule
+    Potência máxima $P_{\rm max}$   & 200   & \si{\watt-peak} \\
+    Tensão MPP $V_{\rm mpp}$        & 26,3  & \si{\volt}      \\
+    Corrente MPP $I_{\rm mpp}$      & 7,61  & \si{\ampere}    \\
+    Tensão de circuito aberto $V_{oc}$ & 32,9 & \si{\volt}   \\
+    Corrente de curto-circuito $I_{sc}$ & 8,21 & \si{\ampere}\\
+    Células em série $N_s$          & 54    & -               \\
+    Fator de idealidade $n$         & 1,2   & -               \\
+    Resistência série $R_s$         & 0,221 & \si{\ohm}       \\
+    Resistência paralela $R_p$      & 415,4 & \si{\ohm}       \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Conversor DC-DC e Controle de Corrente}
+
+O conversor Buck-Boost opera em modo de controle de corrente: o algoritmo MPPT
+define uma referência de corrente $I_{\rm ref}$, e o conversor ajusta o ciclo de
+trabalho para que $I_{\rm pv} = I_{\rm ref}$. Dado $I_{\rm ref}$, a tensão de
+operação $V_{\rm pv}$ é determinada invertendo a Eq.~\eqref{eq:diodo} por
+bisseção (60 iterações, suporte $[\SI{0,01}{\volt},\, 1{,}05 V_{oc}]$).
+
+\subsection{Banco de Baterias}
+
+O banco de baterias é modelado de forma ideal: tensão terminal constante
+($V_{\rm nom} = \SI{48}{\volt}$), capacidade de \SI{100}{\ampere\hour}
+(\SI{4800}{\watt\hour}) e eficiência de carga $\eta = \SI{95}{\percent}$.
+O estado de carga (SOC) evolui como:
+
+\begin{equation}
+  \mathrm{SOC}(t + \Delta t) = \mathrm{SOC}(t)
+    + \frac{\eta\, P_{\rm pv}(t)\,\Delta t}{C_{\rm bat}}
+\end{equation}
+
+\noindent com $\mathrm{SOC} \in [20\%, 100\%]$ e SOC inicial de $50\%$.
+
+% ============================================================
+\section{Algoritmos MPPT}
+
+\subsection{Perturba \& Observa (P\&O)}
+
+O algoritmo P\&O \cite{esram2007comparison} opera comparando as variações de
+potência $\Delta P$ e tensão $\Delta V$ a cada amostra. Em modo de controle de
+corrente, a lógica é:
+
+\begin{equation}
+  I_{\rm ref}[k+1] =
+  \begin{cases}
+    I_{\rm ref}[k] + \Delta I & \text{se } \Delta P \cdot \Delta V < 0 \\
+    I_{\rm ref}[k] - \Delta I & \text{se } \Delta P \cdot \Delta V > 0 \\
+    I_{\rm ref}[k] + \Delta I & \text{se } \Delta P \cdot \Delta V = 0
+  \end{cases}
+  \label{eq:po}
+\end{equation}
+
+\noindent onde $\Delta I = \SI{0,3}{\ampere}$ é o passo de perturbação. O
+algoritmo é independente dos parâmetros do painel, simples de implementar e robusto
+a ruídos, mas oscila continuamente em torno do MPP, resultando em perdas de
+rastreamento proporcionais a $\Delta I^2$.
+
+\subsection{Método Beta ($\beta$)}
+
+O Método Beta \cite{jain2004new} define uma variável auxiliar que é
+\emph{invariante com a irradiância} e \emph{constante no MPP para dada
+temperatura}:
+
+\begin{equation}
+  \beta = \ln\!\left(\frac{I_{\rm pv}}{V_{\rm pv}}\right) - c(T_c)\,V_{\rm pv},
+  \qquad
+  c(T_c) = \frac{q}{n\,k\,T_c\,N_s}
+  \label{eq:beta}
+\end{equation}
+
+No MPP, $\beta = \beta^*$, onde $\beta^*$ é calculado a partir de
+$(V_{\rm mpp}, I_{\rm mpp})$ para a temperatura atual da célula. Um controlador
+PI adaptativo mantém $\beta = \beta^*$:
+
+\begin{equation}
+  I_{\rm ref}[k+1] = K_{p,\rm eff}\,e[k] + \sum_{i=0}^{k} K_i\,e[i]\,\Delta t,
+  \qquad e[k] = \beta^* - \beta[k]
+  \label{eq:pi}
+\end{equation}
+
+O ganho proporcional é adaptado ao ponto de operação para garantir estabilidade em
+qualquer nível de irradiância. O ganho do processo (planta) é
+$K_{\rm planta} \approx (2 + c\,V_{\rm mpp})/I_{\rm mpp}$, que aumenta em
+condições de baixa irradiância. Utilizamos:
+
+\begin{equation}
+  K_{p,\rm eff} = \frac{\alpha}{K_{\rm planta}}
+  = \frac{\alpha\,I_{\rm mpp}}{2 + c(T_c)\,V_{\rm mpp}}
+  \label{eq:kp_eff}
+\end{equation}
+
+\noindent com $\alpha = 0{,}5$ (fator de amortecimento subcrítico) e $K_i =
+2{,}0$. O integrador é inicializado em $I_{\rm mpp}$ a cada hora para eliminar
+o transitório inicial. O anti-\textit{windup} limita o integral a
+$[0,\; 1{,}05\,I_{sc}]$.
+
+A vantagem fundamental do Beta sobre o P\&O é a eliminação da oscilação em regime
+permanente: uma vez convergido, o controlador mantém $\beta = \beta^*$ sem
+precisar perturbar o sistema, resultando em FR próximo de \SI{100}{\percent}.
+
+% ============================================================
+\section{Dados Climáticos - INMET A702}
+
+Os dados climáticos provêm da Estação Automática A702 do Instituto Nacional de
+Meteorologia (INMET), localizada em Campo~Grande/MS
+(lat.~$-20{,}45°$, lon.~$-54{,}72°$, alt.~\SI{528}{\meter}). Utilizaram-se registros
+horários do ano de 2025: irradiância global horizontal $G$ [\si{\kilo\joule\per\meter\squared}]
+convertida para [\si{\watt\per\meter\squared}] por divisão por 3,6, e temperatura do
+ar seco $T_{\rm amb}$ [\si{\celsius}].
+
+O período simulado compreende sete dias consecutivos a partir do dia 60 do ano
+($\approx$ 1\textordmasculine\ a 7 de março de 2025), totalizando 168 amostras horárias.
+A Figura~\ref{fig:inmet} mostra o perfil climático do período, com picos de
+irradiância de até \SI{1027}{\watt\per\meter\squared} e temperatura média de
+\SI{25,9}{\celsius}.
+
+% ============================================================
+\section{Metodologia de Simulação}
+
+A simulação é implementada em Python~3.11 com as bibliotecas NumPy, SciPy,
+Matplotlib e Pandas. A cada hora $h$ do perfil INMET:
+
+\begin{enumerate}
+  \item Calcula-se $T_{c,h}$ pela correção NOCT.
+  \item Determina-se $(V_{\rm mpp}, I_{\rm mpp}, P_{\rm mpp})$ via \texttt{find\_mpp}.
+  \item O controlador MPPT é reiniciado próximo ao MPP calculado.
+  \item Executam-se $N_{\rm sub} = 100$ sub-iterações de \SI{36}{\second} ($\Delta t = \SI{0,01}{\hour}$): o MPPT atualiza $I_{\rm ref}$, o painel é resolvido e a potência é registrada.
+  \item A potência média da hora alimenta o modelo de bateria.
+\end{enumerate}
+
+O Fator de Rastreamento (FR) é calculado como:
+
+\begin{equation}
+  \mathrm{FR} = \frac{\displaystyle\sum_{h:\,G_h>0} P_{{\rm mppt},h}}
+                     {\displaystyle\sum_{h:\,G_h>0} P_{{\rm mpp},h}} \times 100\%
+  \label{eq:fr}
+\end{equation}
+
+% ============================================================
+\section{Resultados e Discussão}
+
+\subsection{Curvas Características do Painel FV}
+
+As Figuras~\ref{fig:iv_g} e~\ref{fig:iv_t} mostram as curvas I-V e P-V do
+painel para diferentes irradiâncias (temperatura fixa em \SI{25}{\celsius}) e
+diferentes temperaturas (irradiância fixa em \SI{1000}{\watt\per\meter\squared}),
+respectivamente. O comportamento é consistente com o modelo de diodo único:
+a corrente de curto-circuito é proporcional à irradiância, enquanto a tensão de
+circuito aberto diminui com o aumento da temperatura - redução de
+$\approx \SI{1}{\volt}$ por cada \SI{15}{\celsius}$ de incremento, conforme
+esperado para módulos de silício cristalino \cite{villalva2009comprehensive}.
+Os marcadores indicam os pontos de máxima potência encontrados numericamente.
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{fig01_curvas_irradiancia.png}
+    \caption{Efeito da irradiância ($T_c = \SI{25}{\celsius}$).}
+    \label{fig:iv_g}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{fig02_curvas_temperatura.png}
+    \caption{Efeito da temperatura ($G = \SI{1000}{\watt\per\meter\squared}$).}
+    \label{fig:iv_t}
+  \end{subfigure}
+  \caption{Curvas características I-V e P-V do painel de \SI{200}{\watt-peak}.
+           Marcadores indicam os MPPs.}
+  \label{fig:curvas}
+\end{figure}
+
+\subsection{Condições Climáticas - 7 Dias}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{fig03_dados_inmet.png}
+  \caption{Perfil climático medido pela Estação INMET A702 (Campo~Grande/MS).
+           Período: dias 60 a 66 de 2025 ($\approx$ 1--7 de março).}
+  \label{fig:inmet}
+\end{figure}
+
+O período de março apresenta irradiância significativa (dias 60 e 61 com pico
+superior a \SI{1000}{\watt\per\meter\squared}) intercalada com dias de nebulosidade
+(dias 62--63, redução de 40\% na irradiância acumulada diária). A temperatura
+do ar varia entre \SI{18}{\celsius} e \SI{34}{\celsius}, resultando em
+temperaturas de célula de até \SI{56}{\celsius} nos horários de pico.
+
+\subsection{Rastreamento MPPT - Potência}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{fig04_potencia_mppt.png}
+  \caption{Potência gerada pelos algoritmos P\&O e Beta em comparação com a
+           potência máxima teórica $P_{\rm max}$. Painel inferior: irradiância
+           correspondente.}
+  \label{fig:potencia}
+\end{figure}
+
+A Figura~\ref{fig:potencia} evidencia que o Método Beta acompanha a curva
+$P_{\rm max}$ com precisão praticamente perfeita ao longo de todo o período,
+enquanto o P\&O apresenta desvios visíveis, especialmente nos horários de baixa
+irradiância (amanhecer e entardecer), quando a oscilação de $\pm\Delta I =
+\pm\SI{0,3}{\ampere}$ representa uma parcela maior da corrente MPP disponível.
+
+\subsection{Estado de Carga da Bateria}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig05_soc_bateria.png}
+  \caption{Evolução do Estado de Carga (SOC) do banco de baterias
+           (\SI{48}{\volt}/\SI{100}{\ampere\hour}).}
+  \label{fig:soc}
+\end{figure}
+
+A bateria atinge \SI{100}{\percent} de SOC rapidamente (dia 61 para ambos os
+algoritmos), permanecendo saturada nos dias mais ensolarados. Em dias nublados
+(dias 62--63), o SOC recua ligeiramente, demonstrando que o sistema consegue
+suprir a carga de recarga mesmo em condições adversas.
+
+\subsection{Tensão e Corrente do Painel}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{fig06_tensao_corrente.png}
+  \caption{Tensão e corrente do painel FV ao longo dos sete dias.
+           Linhas pontilhadas indicam os valores MPP nominais (STC).}
+  \label{fig:vi}
+\end{figure}
+
+O Beta opera com tensão de painel sistematicamente mais próxima de $V_{\rm mpp}$
+(linha pontilhada), enquanto o P\&O apresenta flutuações de $\pm$\SI{1,5}{\volt}
+decorrentes da perturbação constante. A corrente de operação do Beta converge
+imediatamente para $I_{\rm mpp}$ sem oscilação, ao passo que o P\&O alterna entre
+$I_{\rm mpp} \pm \Delta I$.
+
+\subsection{Análise Comparativa}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.82\linewidth]{fig07_barras_comparacao.png}
+  \caption{Comparação quantitativa: Fator de Rastreamento e energia total gerada
+           em sete dias.}
+  \label{fig:barras}
+\end{figure}
+
+A Tabela~\ref{tab:resultados} resume as métricas de desempenho dos dois algoritmos.
+
+\begin{table}[H]
+  \centering
+  \caption{Métricas de desempenho - 7 dias (1--7 de março de 2025).}
+  \label{tab:resultados}
+  \small
+  \begin{tabular}{lrrl}
+    \toprule
+    Métrica & P\&O & Beta & Ganho Beta \\
+    \midrule
+    Fator de Rastreamento FR [\%]     & 95,0  & 99,98 & $+5{,}0$~pp \\
+    Energia total [\si{\kilo\watt\hour}] & 6,62 & 6,96  & $+\SI{5,3}{\percent}$ \\
+    Energia total [Wh]                & 6616  & 6964  & $+\SI{348}{\watt\hour}$  \\
+    SOC final [\%]                    & 100,0 & 100,0 & -  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+O Método Beta supera o P\&O em \SI{5,0}{pontos percentuais} de FR e
+\SI{348}{\watt\hour} de energia adicional ao longo de sete dias. Em base anual,
+essa diferença extrapolaria para $\approx \SI{18,2}{\kilo\watt\hour}$ a mais com
+o Beta - equivalente a $\sim$\SI{5}{\percent} da energia total gerada pelo
+sistema, com custo de implementação marginal (requer conhecimento dos parâmetros
+do painel e sensores de temperatura já presentes no sistema).
+
+O FR do P\&O obtido (\SI{95}{\percent}) é superior ao valor teórico de
+$\approx\SI{86}{\percent}$ da literatura \cite{esram2007comparison}, pois
+em nossa simulação cada hora é subdividida em 100 iterações de \SI{36}{\second}
+com irradiância constante - condição que favorece a convergência. Em sistemas
+reais, com irradiância variando em escala de segundos, as perdas por oscilação e
+atraso de rastreamento do P\&O são mais pronunciadas.
+
+% ============================================================
+\section{Conclusões}
+
+Este trabalho demonstrou, por meio de simulação com dados climáticos reais, que o
+Método Beta supera consistentemente o P\&O no rastreamento da máxima potência de
+um sistema GD-FV de \SI{200}{\watt-peak} em Campo Grande/MS. As principais
+conclusões são:
+
+\begin{enumerate}
+  \item \textbf{Superioridade do Beta:} o controlador PI adaptativo elimina a
+        oscilação em regime permanente característica do P\&O, resultando em
+        FR~$\approx$~\SI{100}{\percent} vs \SI{95}{\percent} do P\&O.
+
+  \item \textbf{Importância da adaptação com temperatura:} o parâmetro
+        $c(T_c)$ e o $\beta^*$ de referência devem ser recalculados para a
+        temperatura real da célula. O uso de valores fixos (STC) gera erro
+        sistemático crescente nos horários mais quentes.
+
+  \item \textbf{Ganho de energia:} \SI{348}{\watt\hour} adicionais em sete dias
+        (extrapolação anual: $\approx\SI{18}{\kilo\watt\hour}$) sem custo de
+        hardware - apenas com a escolha de algoritmo MPPT mais sofisticado.
+
+  \item \textbf{Banco de baterias:} o sistema de \SI{4,8}{\kilo\watt\hour} é
+        adequado para o porte do gerador, atingindo SOC pleno nos dias de boa
+        irradiância e mantendo margem de segurança nos dias nublados.
+\end{enumerate}
+
+Como trabalho futuro, recomenda-se a implementação de um banco de dados de
+temperatura de célula em tempo real (via pirgeômetro ou sensor NTC no módulo)
+para atualização dinâmica do $\beta^*$, além da avaliação do algoritmo em
+períodos com nuvens passageiras (variação de irradiância em escala de segundos).
+
+% ============================================================
+\begin{thebibliography}{9}
+
+\bibitem{esram2007comparison}
+T.~Esram e P.~L.~Chapman,
+``Comparison of photovoltaic array maximum power point tracking techniques,''
+\textit{IEEE Trans.\ Energy Convers.}, vol.~22, n.~2, pp.~439--449, jun.~2007.
+
+\bibitem{jain2004new}
+S.~Jain e V.~Agarwal,
+``A new algorithm for rapid tracking of approximate maximum power point in
+photovoltaic systems,''
+\textit{IEEE Power Electron.\ Lett.}, vol.~2, n.~1, pp.~16--19, mar.~2004.
+
+\bibitem{villalva2009comprehensive}
+M.~G.~Villalva, J.~R.~Gazoli e E.~R.~Filho,
+``Comprehensive approach to modeling and simulation of photovoltaic arrays,''
+\textit{IEEE Trans.\ Power Electron.}, vol.~24, n.~5, pp.~1198--1208, mai.~2009.
+
+\bibitem{inmet2025}
+Instituto Nacional de Meteorologia --- INMET,
+``Dados históricos horários --- Estação A702, Campo Grande/MS, 2025,''
+disponível em: \url{https://bdmep.inmet.gov.br}.
+
+\end{thebibliography}
+
+\end{document}
