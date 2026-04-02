@@ -152,10 +152,3 @@ A simulação vai:
 | SOC final | 100% | 100% | — |
 
 ---
-
-## Referências
-
-- Villalva, M. G. et al. "Comprehensive approach to modeling and simulation of photovoltaic arrays." *IEEE Trans. Power Electron.*, 2009.
-- Esram, T. e Chapman, P. L. "Comparison of photovoltaic array maximum power point tracking techniques." *IEEE Trans. Energy Convers.*, 2007.
-- Jain, S. e Agarwal, V. "A new algorithm for rapid tracking of approximate maximum power point in photovoltaic systems." *IEEE Power Electron. Lett.*, 2004.
-- INMET — Estação A702, Campo Grande/MS. Dados horários 2025. [bdmep.inmet.gov.br](https://bdmep.inmet.gov.br)
