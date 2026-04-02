@@ -24,6 +24,8 @@ env/
 # Dataset bruto (arquivo grande)
 T1/dataset/
 
+CLAUDE.md
+GEMINI.md
 # Figuras geradas automaticamente (podem ser re-geradas rodando main.py)
 # Comentar a linha abaixo se quiser incluir as figuras no repositório
 # T1/figuras/
